@@ -100,6 +100,74 @@ class AuthController extends Controller
             ],
         ]);
     }
+    // Envoyer le lien de réinitialisation
+public function forgotPassword(Request $request): JsonResponse
+{
+    $request->validate(['email' => 'required|email']);
+
+    $user = \App\Models\User::where('email', $request->email)->first();
+
+    if (!$user) {
+        // On retourne succès même si l'email n'existe pas (sécurité)
+        return response()->json([
+            'message' => 'Si cet email existe, un lien de réinitialisation a été envoyé.'
+        ]);
+    }
+
+    // Générer un token de reset
+    $token = \Illuminate\Support\Str::random(64);
+
+    // Sauvegarder en base
+    \DB::table('password_reset_tokens')->updateOrInsert(
+        ['email' => $request->email],
+        [
+            'email'      => $request->email,
+            'token'      => bcrypt($token),
+            'created_at' => now(),
+        ]
+    );
+
+    // Envoyer l'email (via Mailtrap en dev)
+    $user->notify(new \App\Notifications\ResetPasswordNotification($token));
+
+    return response()->json([
+        'message' => 'Lien de réinitialisation envoyé à ' . $request->email
+    ]);
+}
+
+// Réinitialiser le mot de passe
+public function resetPassword(Request $request): JsonResponse
+{
+    $request->validate([
+        'email'                 => 'required|email',
+        'token'                 => 'required|string',
+        'password'              => 'required|string|min:8|confirmed',
+    ]);
+
+    $record = \DB::table('password_reset_tokens')
+        ->where('email', $request->email)
+        ->first();
+
+    if (!$record || !\Hash::check($request->token, $record->token)) {
+        return response()->json(['message' => 'Token invalide ou expiré.'], 400);
+    }
+
+    // Vérifier que le token n'a pas expiré (1 heure)
+    if (now()->diffInMinutes($record->created_at) > 60) {
+        return response()->json(['message' => 'Token expiré. Refaites une demande.'], 400);
+    }
+
+    $user = \App\Models\User::where('email', $request->email)->firstOrFail();
+    $user->update(['password' => \Hash::make($request->password)]);
+
+    // Supprimer le token utilisé
+    \DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+
+    // Supprimer tous les tokens Sanctum existants
+    $user->tokens()->delete();
+
+    return response()->json(['message' => 'Mot de passe réinitialisé avec succès.']);
+}
 
     // -----------------------------------------------
     // PROFIL (utilisateur connecté)

@@ -16,16 +16,26 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::get('/doctors', [DoctorController::class, 'index']);
+Route::get('/doctors/{id}/slots',   [DoctorController::class, 'availableSlots']);
+Route::get('/doctors/{id}/public',   [DoctorController::class, 'publicProfile']);
+Route::get('/doctors/{id}/reviews',  [DoctorController::class, 'reviews']);
 
     Route::middleware('auth:sanctum')->group(function () {
     // Webhooks publics (pas d'auth requise — appelés par MTN/Orange)
     Route::post('/webhooks/mtn',    [PaymentController::class, 'webhookMtn']);
     Route::post('/webhooks/orange', [PaymentController::class, 'webhookOrange']);
     Route::get('/me',      [AuthController::class, 'me']);
+    // Fiche médecin + créneaux
+Route::get('/doctors/{id}',          [DoctorController::class, 'show']);
+Route::get('/doctors/{id}/slots',     [DoctorController::class, 'availableSlots']);
+Route::post('/appointments',          [AppointmentController::class, 'store']);
+        Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/auth/reset-password',  [AuthController::class, 'resetPassword']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/online-status', [MessageController::class, 'onlineStatus']);
 
     Route::middleware(CheckRole::class . ':patient')->prefix('patient')->group(function () {
+        Route::get('/doctors/{id}/profile', [DoctorController::class, 'publicProfile']);
         Route::get('/appointments',        [AppointmentController::class, 'patientIndex']);
         Route::post('/appointments',       [AppointmentController::class, 'store']);
         Route::patch('/appointments/{id}/cancel', [AppointmentController::class, 'cancel']);
@@ -34,6 +44,7 @@ Route::get('/doctors', [DoctorController::class, 'index']);
         Route::get('/prescriptions', [PrescriptionController::class, 'patientIndex']);
         Route::get('/messages',           [MessageController::class, 'index']);
         Route::post('/messages',          [MessageController::class, 'store']);
+        Route::get('/consultations/{appointmentId}/waiting', [ConsultationController::class, 'waitingRoom']);
         Route::get('/messages/{userId}',  [MessageController::class, 'conversation']);
         Route::post('/payments/initiate',      [PaymentController::class, 'initiate']);
         Route::get('/payments/{id}/status',    [PaymentController::class, 'checkStatus']);
@@ -49,6 +60,8 @@ Route::get('/doctors', [DoctorController::class, 'index']);
         Route::post('/prescriptions', [PrescriptionController::class, 'store']);
         Route::get('/profile', [DoctorController::class, 'show']);
         Route::put('/profile', [DoctorController::class, 'update']);
+        Route::post('/consultations/{appointmentId}/start', [ConsultationController::class, 'start']);
+Route::post('/consultations/{appointmentId}/end',   [ConsultationController::class, 'end']);
         Route::get('/messages',          [MessageController::class, 'index']);
         Route::post('/messages',         [MessageController::class, 'store']);
         Route::get('/messages/{userId}', [MessageController::class, 'conversation']);
