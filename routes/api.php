@@ -9,6 +9,8 @@ use App\Http\Controllers\Api\MessageController;
 use App\Http\Middleware\CheckRole;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\MedicalRecordController;
+use App\Http\Controllers\Api\ConsultationController;
 
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
@@ -49,6 +51,10 @@ Route::post('/appointments',          [AppointmentController::class, 'store']);
         Route::post('/payments/initiate',      [PaymentController::class, 'initiate']);
         Route::get('/payments/{id}/status',    [PaymentController::class, 'checkStatus']);
         Route::get('/payments/history',        [PaymentController::class, 'history']);
+        Route::post('/payments/{id}/simulate-confirm', [PaymentController::class, 'simulateConfirm']);
+        Route::get('/medical-record',              [MedicalRecordController::class, 'patientRecord']);
+        Route::get('/medical-record/documents',    [MedicalRecordController::class, 'documents']);
+        Route::get('/medical-record/consultations',[MedicalRecordController::class, 'consultations']);
     });
 
     Route::middleware(CheckRole::class . ':doctor')->prefix('doctor')->group(function () {

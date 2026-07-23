@@ -18,85 +18,47 @@ class PaymentController extends Controller
     ) {}
 
     // Initier un paiement
-    public function initiate(Request $request): JsonResponse
-    {
-        $request->validate([
-            'appointment_id' => 'required|exists:appointments,id',
-            'method'         => 'required|in:mtn_momo,orange_money',
-            'phone'          => 'required|string',
-        ]);
+public function initiate(Request $request): JsonResponse
+{
+    $request->validate([
+        'appointment_id' => 'required|exists:appointments,id',
+        'method'         => 'required|in:mtn_momo,orange_money',
+        'phone'          => 'required|string',
+    ]);
 
-        $appointment = Appointment::findOrFail($request->appointment_id);
+    $appointment = Appointment::findOrFail($request->appointment_id);
 
-        // Vérifier que c'est bien le patient du RDV
-        if ($appointment->patient_id !== $request->user()->id) {
-            return response()->json(['message' => 'Non autorisé.'], 403);
-        }
-
-        // Vérifier que ce n'est pas déjà payé
-        if ($appointment->is_paid) {
-            return response()->json(['message' => 'Ce rendez-vous est déjà payé.'], 400);
-        }
-
-        // Créer l'enregistrement de paiement
-        $payment = Payment::create([
-            'appointment_id' => $appointment->id,
-            'patient_id'     => $request->user()->id,
-            'amount'         => $appointment->fee,
-            'currency'       => 'XAF',
-            'method'         => $request->method,
-            'status'         => 'pending',
-        ]);
-
-        // Initier selon la méthode choisie
-        if ($request->method === 'mtn_momo') {
-            $result = $this->mtn->requestToPay(
-                phone:      $request->phone,
-                amount:     $appointment->fee,
-                externalId: 'DOKITA-' . $payment->id,
-                note:       'Consultation Dr. ' . $appointment->doctor->name,
-            );
-
-            if ($result['success']) {
-                $payment->update(['transaction_id' => $result['reference_id']]);
-                return response()->json([
-                    'message'        => 'Demande de paiement envoyée. Confirmez sur votre téléphone MTN.',
-                    'payment_id'     => $payment->id,
-                    'reference_id'   => $result['reference_id'],
-                    'method'         => 'mtn_momo',
-                    'amount'         => $appointment->fee,
-                    'status'         => 'pending',
-                ]);
-            }
-
-        } elseif ($request->method === 'orange_money') {
-            $result = $this->orange->initPayment(
-                phone:       $request->phone,
-                amount:      $appointment->fee,
-                orderId:     'DOKITA-' . $payment->id,
-                description: 'Consultation Dr. ' . $appointment->doctor->name,
-            );
-
-            if ($result['success']) {
-                $payment->update(['transaction_id' => $result['pay_token'] ?? $result['order_id']]);
-                return response()->json([
-                    'message'     => 'Redirection vers Orange Money.',
-                    'payment_id'  => $payment->id,
-                    'payment_url' => $result['payment_url'],
-                    'method'      => 'orange_money',
-                    'amount'      => $appointment->fee,
-                    'status'      => 'pending',
-                ]);
-            }
-        }
-
-        // Si erreur
-        $payment->update(['status' => 'failed']);
-        return response()->json([
-            'message' => 'Erreur lors de l\'initiation du paiement.',
-            'error'   => $result['error'] ?? 'Erreur inconnue.',
-        ], 500);
+    if ($appointment->patient_id !== $request->user()->id) {
+        return response()->json(['message' => 'Non autorisé.'], 403);
     }
+
+    if ($appointment->is_paid) {
+        return response()->json(['message' => 'Ce rendez-vous est déjà payé.'], 400);
+    }
+
+    // Créer l'enregistrement de paiement
+    $payment = Payment::create([
+        'appointment_id' => $appointment->id,
+        'patient_id'     => $request->user()->id,
+        'amount'         => $appointment->fee,
+        'currency'       => 'XAF',
+        'method'         => $request->method,
+        'status'         => 'pending',
+        'transaction_id' => 'SIM-' . strtoupper(\Illuminate\Support\Str::random(10)),
+    ]);
+
+    // ✅ Simulation — pas d'appel API réelle MTN/Orange
+    // En production, remplacer ce bloc par l'appel MtnMomoService
+    return response()->json([
+        'message'      => 'Demande de paiement initiée.',
+        'payment_id'   => $payment->id,
+        'reference_id' => $payment->transaction_id,
+        'method'       => $request->method,
+        'amount'       => $appointment->fee,
+        'status'       => 'pending',
+        'phone'        => $request->phone,
+    ]);
+}
 
     // Vérifier le statut d'un paiement
     public function checkStatus(int $paymentId): JsonResponse
@@ -185,4 +147,19 @@ class PaymentController extends Controller
 
         return response()->json($payments);
     }
+    // Simulation de confirmation paiement (développement uniquement)
+public function simulateConfirm(int $id, Request $request): JsonResponse
+{
+    $payment = Payment::where('id', $id)
+        ->where('patient_id', $request->user()->id)
+        ->firstOrFail();
+
+    $payment->update(['status' => 'completed']);
+    $payment->appointment->update(['is_paid' => true, 'status' => 'confirmed']);
+
+    return response()->json([
+        'message' => 'Paiement simulé avec succès.',
+        'status'  => 'completed',
+    ]);
+}
 }

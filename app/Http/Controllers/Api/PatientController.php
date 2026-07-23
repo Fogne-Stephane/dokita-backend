@@ -43,34 +43,42 @@ class PatientController extends Controller
     }
 
     // Liste des patients d'un médecin
-    public function doctorPatients(Request $request): JsonResponse
-    {
-        $doctorId = $request->user()->id;
+public function doctorPatients(Request $request): JsonResponse
+{
+    $doctorId = $request->user()->id;
 
-        $patients = User::whereHas('appointmentsAsPatient', fn($q) =>
-            $q->where('doctor_id', $doctorId)
-        )
-        ->with('patient')
-        ->get()
-        ->map(fn($u) => [
-            'id'         => $u->id,
-            'name'       => $u->name,
-            'email'      => $u->email,
-            'phone'      => $u->phone,
-            'blood_type' => $u->patient?->blood_type,
-            'city'       => $u->patient?->city,
-            'last_visit' => $u->appointmentsAsPatient()
-                ->where('doctor_id', $doctorId)
-                ->where('status', 'completed')
-                ->latest('scheduled_at')
-                ->first()?->scheduled_at?->format('d M Y'),
-            'consultations_count' => $u->appointmentsAsPatient()
-                ->where('doctor_id', $doctorId)
-                ->count(),
-        ]);
+    $patients = User::whereHas('appointmentsAsPatient', fn($q) =>
+        $q->where('doctor_id', $doctorId)
+    )
+    ->with(['patient', 'appointmentsAsPatient' => fn($q) =>
+        $q->where('doctor_id', $doctorId)->orderBy('scheduled_at', 'desc')
+    ])
+    ->get()
+    ->map(fn($u) => [
+        'id'                  => $u->id,
+        'name'                => $u->name,
+        'email'               => $u->email,
+        'phone'               => $u->phone,
+        'blood_type'          => $u->patient?->blood_type,
+        'city'                => $u->patient?->city,
+        'allergies'           => $u->patient?->allergies,
+        'chronic_diseases'    => $u->patient?->chronic_diseases,
+        'gender'              => $u->patient?->gender,
+        'birth_date'          => $u->patient?->birth_date?->format('d/m/Y'),
+        'last_visit'          => $u->appointmentsAsPatient
+                                    ->where('status', 'completed')
+                                    ->first()?->scheduled_at
+                                    ? \Carbon\Carbon::parse(
+                                        $u->appointmentsAsPatient->where('status','completed')->first()->scheduled_at
+                                      )->format('d M Y')
+                                    : null,
+        'consultations_count' => $u->appointmentsAsPatient->where('status','completed')->count(),
+        'last_reason'         => $u->appointmentsAsPatient->first()?->reason,
+        'last_diagnosis'      => $u->appointmentsAsPatient->first()?->consultation?->diagnosis,
+    ]);
 
-        return response()->json($patients);
-    }
+    return response()->json($patients);
+}
 
     // Admin — tous les utilisateurs
     public function adminIndex(): JsonResponse
