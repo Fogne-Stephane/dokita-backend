@@ -1,10 +1,17 @@
 <?php
-
 use Illuminate\Support\Facades\Broadcast;
 
-// Canal privé de chat entre deux utilisateurs
-Broadcast::channel('chat.{userId1}.{userId2}', function ($user, $userId1, $userId2) {
-    // L'utilisateur peut rejoindre ce canal s'il est l'un des deux participants
-    return (int) $user->id === (int) $userId1 ||
-           (int) $user->id === (int) $userId2;
+// Canal patient
+Broadcast::channel('patient.{userId}', function ($user, $userId) {
+    return (int) $user->id === (int) $userId;
+});
+
+// Canal médecin
+Broadcast::channel('doctor.{userId}', function ($user, $userId) {
+    return (int) $user->id === (int) $userId;
+});
+
+// Canal chat
+Broadcast::channel('chat.{id1}.{id2}', function ($user, $id1, $id2) {
+    return (int) $user->id === (int) $id1 || (int) $user->id === (int) $id2;
 });

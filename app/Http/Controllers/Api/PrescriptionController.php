@@ -51,28 +51,28 @@ public function patientIndex(Request $request): JsonResponse
     }
 
     // Créer une prescription (médecin)
-    public function store(Request $request): JsonResponse
-    {
-        $request->validate([
-            'patient_id'      => 'required|exists:users,id',
-            'consultation_id' => 'nullable|exists:consultations,id',
-            'medications'     => 'required|array|min:1',
-            'instructions'    => 'nullable|string',
-            'valid_until'     => 'nullable|date|after:today',
-        ]);
+public function store(Request $request): JsonResponse
+{
+    $request->validate([
+        'patient_id'      => 'required|exists:users,id',
+        'consultation_id' => 'nullable|exists:consultations,id',
+        'medications'     => 'required|array|min:1',
+        'instructions'    => 'nullable|string',
+        'valid_until'     => 'nullable|date',
+    ]);
 
-        $prescription = Prescription::create([
-            'consultation_id' => $request->consultation_id,
-            'patient_id'      => $request->patient_id,
-            'doctor_id'       => $request->user()->id,
-            'medications'     => $request->medications,
-            'instructions'    => $request->instructions,
-            'valid_until'     => $request->valid_until,
-        ]);
+    $prescription = Prescription::create([
+        'patient_id'      => $request->patient_id,
+        'doctor_id'       => $request->user()->id,
+        'consultation_id' => $request->consultation_id,
+        'medications'     => $request->medications,
+        'instructions'    => $request->instructions,
+        'valid_until'     => $request->valid_until,
+    ]);
 
-        return response()->json([
-            'message'      => 'Prescription créée.',
-            'prescription' => $prescription,
-        ], 201);
-    }
+    return response()->json([
+        'message'      => 'Ordonnance créée.',
+        'prescription' => $prescription,
+    ], 201);
+}
 }

@@ -14,10 +14,10 @@ class DoctorController extends Controller
 
 
     // Liste publique des médecins
- public function index(Request $request): JsonResponse
+public function index(Request $request): JsonResponse
 {
-    $query = Doctor::with('user', 'healthCenter')
-        ->where('is_verified', true);
+    $query = Doctor::with('user', 'healthCenter');
+    // Retire le filtre is_verified pour afficher tous les médecins
 
     if ($request->specialty) {
         $query->where('specialty', $request->specialty);
@@ -46,8 +46,7 @@ class DoctorController extends Controller
         'city'             => $d->healthCenter?->city ?? null,
         'health_center'    => $d->healthCenter?->name,
         'rating'           => round(4.5 + (($d->user_id % 5) * 0.1), 1),
-        'reviews_count'    => Appointment::where('doctor_id', $d->user_id)
-                                ->where('status', 'completed')->count(),
+        'reviews_count'    => \App\Models\Appointment::where('doctor_id', $d->user_id)->where('status','completed')->count(),
     ]);
 
     return response()->json($doctors);

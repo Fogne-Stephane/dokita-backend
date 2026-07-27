@@ -52,6 +52,54 @@ public function index(Request $request): JsonResponse
 
     return response()->json($conversations);
 }
+// Chat lié à une consultation
+public function consultationChat(int $doctorId, Request $request): JsonResponse
+{
+    $myId = $request->user()->id;
+
+    Message::where('sender_id', $doctorId)->where('receiver_id', $myId)->where('is_read', false)
+        ->update(['is_read' => true, 'read_at' => now()]);
+
+    $messages = Message::where(fn($q) =>
+        $q->where('sender_id', $myId)->where('receiver_id', $doctorId)
+    )->orWhere(fn($q) =>
+        $q->where('sender_id', $doctorId)->where('receiver_id', $myId)
+    )
+    ->orderBy('created_at', 'asc')
+    ->get()
+    ->map(fn($m) => [
+        'id'      => $m->id,
+        'from'    => $m->sender_id === $myId ? 'me' : 'other',
+        'content' => $m->content,
+        'time'    => $m->created_at->format('H:i'),
+        'is_read' => $m->is_read,
+    ]);
+
+    return response()->json($messages);
+}
+
+public function sendConsultation(Request $request): JsonResponse
+{
+    $request->validate([
+        'receiver_id' => 'required|exists:users,id',
+        'content'     => 'required|string|max:2000',
+    ]);
+
+    $message = Message::create([
+        'sender_id'   => $request->user()->id,
+        'receiver_id' => $request->receiver_id,
+        'content'     => $request->content,
+    ]);
+
+    broadcast(new \App\Events\NewMessage($message));
+
+    return response()->json([
+        'id'      => $message->id,
+        'from'    => 'me',
+        'content' => $message->content,
+        'time'    => $message->created_at->format('H:i'),
+    ], 201);
+}
     // Messages d'une conversation
     public function conversation(int $userId, Request $request): JsonResponse
     {

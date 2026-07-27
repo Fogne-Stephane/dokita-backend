@@ -12,6 +12,27 @@ use Illuminate\Http\Request;
 
 class PaymentController extends Controller
 {
+    public function doctorPayments(Request $request): JsonResponse
+{
+    $payments = Payment::with('appointment.patient')
+        ->whereHas('appointment', fn($q) => 
+            $q->where('doctor_id', $request->user()->id)
+        )
+        ->orderBy('created_at', 'desc')
+        ->get()
+        ->map(fn($p) => [
+            'id'             => $p->id,
+            'patient'        => $p->appointment?->patient?->name ?? 'Patient',
+            'amount'         => number_format($p->amount, 0, ',', ' ') . ' XAF',
+            'method'         => $p->method,
+            'status'         => $p->status,
+            'date'           => $p->created_at->format('d M Y'),
+            'transaction_id' => $p->transaction_id,
+        ]);
+
+    return response()->json($payments);
+}
+
     public function __construct(
         private MtnMomoService    $mtn,
         private OrangeMoneyService $orange
@@ -155,11 +176,18 @@ public function simulateConfirm(int $id, Request $request): JsonResponse
         ->firstOrFail();
 
     $payment->update(['status' => 'completed']);
-    $payment->appointment->update(['is_paid' => true, 'status' => 'confirmed']);
+    $payment->appointment->update(['is_paid' => true, 'status' => 'pending']);
+
+    // Notifier le médecin en temps réel
+    broadcast(new \App\Events\ConsultationRequested(
+        $payment->appointment->load('patient', 'doctor')
+    ));
 
     return response()->json([
-        'message' => 'Paiement simulé avec succès.',
-        'status'  => 'completed',
+        'message'        => 'Paiement confirmé.',
+        'status'         => 'completed',
+        'appointment_id' => $payment->appointment_id,
+        'type'           => $payment->appointment->type,
     ]);
 }
 }
